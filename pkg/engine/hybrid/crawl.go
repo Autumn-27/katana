@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-
+	"slices"
 	"strings"
 	"time"
 
@@ -15,7 +15,6 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/katana/pkg/engine/common"
-	"github.com/projectdiscovery/katana/pkg/engine/parser"
 	"github.com/projectdiscovery/katana/pkg/navigation"
 	"github.com/projectdiscovery/katana/pkg/utils"
 	"github.com/projectdiscovery/retryablehttp-go"
@@ -36,7 +35,11 @@ func (c *Crawler) navigateRequest(s *common.CrawlSession, request *navigation.Re
 	if err != nil {
 		return nil, errorutil.NewWithTag("hybrid", "could not create target").Wrap(err)
 	}
-	defer page.Close()
+	defer func() {
+		if err := page.Close(); err != nil {
+			gologger.Error().Msgf("Error closing page: %v\n", err)
+		}
+	}()
 	c.addHeadersToPage(page)
 
 	pageRouter := NewHijack(page)
@@ -130,18 +133,28 @@ func (c *Crawler) navigateRequest(s *common.CrawlSession, request *navigation.Re
 			requestHeaders[name] = []string{value.Str()}
 		}
 
-		if e.ResourceType == "XHR" && c.Options.Options.XhrExtraction {
-			xhr := navigation.Request{
+		shouldCapture := func(xhrExtraction bool) bool {
+			resourceTypes := []proto.NetworkResourceType{
+				proto.NetworkResourceTypeXHR,
+				proto.NetworkResourceTypeFetch,
+				proto.NetworkResourceTypeScript,
+			}
+
+			return xhrExtraction && slices.Contains(resourceTypes, e.ResourceType)
+		}
+
+		if shouldCapture(c.Options.Options.XhrExtraction) {
+			networkReq := navigation.Request{
 				URL:    httpreq.URL.String(),
 				Method: httpreq.Method,
 				Body:   e.Request.PostData,
 			}
 			if len(httpreq.Header) > 0 {
-				xhr.Headers = utils.FlattenHeaders(httpreq.Header)
+				networkReq.Headers = utils.FlattenHeaders(httpreq.Header)
 			} else {
-				xhr.Headers = utils.FlattenHeaders(requestHeaders)
+				networkReq.Headers = utils.FlattenHeaders(requestHeaders)
 			}
-			xhrRequests = append(xhrRequests, xhr)
+			xhrRequests = append(xhrRequests, networkReq)
 		}
 
 		// trim trailing /
@@ -153,7 +166,7 @@ func (c *Crawler) navigateRequest(s *common.CrawlSession, request *navigation.Re
 		}
 
 		// process the raw response
-		navigationRequests := parser.ParseResponse(resp)
+		navigationRequests := c.Options.Parser.ParseResponse(resp)
 		c.Enqueue(s.Queue, navigationRequests...)
 
 		// do not continue following the request if it's a redirect and redirects are disabled
@@ -184,14 +197,17 @@ func (c *Crawler) navigateRequest(s *common.CrawlSession, request *navigation.Re
 
 	waitNavigation()
 
-	// Wait for the window.onload event
-	if err := page.WaitLoad(); err != nil {
-		gologger.Warning().Msgf("\"%s\" on wait load: %s\n", request.URL, err)
+	// Wait the page to be stable a duration
+	timeStable := time.Duration(c.Options.Options.TimeStable) * time.Second
+
+	if timeout < timeStable {
+		gologger.Warning().Msgf("timeout is less than time stable, setting time stable to half of timeout to avoid timeout\n")
+		timeStable = timeout / 2
+		gologger.Warning().Msgf("setting time stable to %s\n", timeStable)
 	}
 
-	// wait for idle the network requests
-	if err := page.WaitIdle(timeout); err != nil {
-		gologger.Warning().Msgf("\"%s\" on wait idle: %s\n", request.URL, err)
+	if err := page.WaitStable(timeStable); err != nil {
+		gologger.Warning().Msgf("could not wait for page to be stable: %s\n", err)
 	}
 
 	var getDocumentDepth = int(-1)
@@ -224,7 +240,7 @@ func (c *Crawler) navigateRequest(s *common.CrawlSession, request *navigation.Re
 
 	responseCopy.Reader, _ = goquery.NewDocumentFromReader(strings.NewReader(responseCopy.Body))
 	if responseCopy.Reader != nil {
-		navigationRequests := parser.ParseResponse(&responseCopy)
+		navigationRequests := c.Options.Parser.ParseResponse(&responseCopy)
 		c.Enqueue(s.Queue, navigationRequests...)
 	}
 

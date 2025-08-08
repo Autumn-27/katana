@@ -44,7 +44,11 @@ func main() {
 		}
 		gologger.Fatal().Msgf("could not create runner: %s\n", err)
 	}
-	defer katanaRunner.Close()
+	defer func() {
+		if err := katanaRunner.Close(); err != nil {
+			gologger.Error().Msgf("Error closing katana runner: %v\n", err)
+		}
+	}()
 
 	// close handler
 	resumeFilename := defaultResumeFilename()
@@ -53,7 +57,9 @@ func main() {
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 		for range c {
 			gologger.DefaultLogger.Info().Msg("- Ctrl+C pressed in Terminal")
-			katanaRunner.Close()
+			if err := katanaRunner.Close(); err != nil {
+				gologger.Error().Msgf("Error closing katana runner: %v\n", err)
+			}
 
 			gologger.Info().Msgf("Creating resume file: %s\n", resumeFilename)
 			err := katanaRunner.SaveState(resumeFilename)
@@ -87,7 +93,7 @@ func main() {
 
 	// remove the resume file in case it exists
 	if fileutil.FileExists(resumeFilename) {
-		os.Remove(resumeFilename)
+		_ = os.Remove(resumeFilename)
 	}
 
 }
@@ -114,6 +120,7 @@ pipelines offering both headless and non-headless crawling.`)
 		flagSet.StringVarP(&options.KnownFiles, "known-files", "kf", "", "enable crawling of known files (all,robotstxt,sitemapxml), a minimum depth of 3 is required to ensure all known files are properly crawled."),
 		flagSet.IntVarP(&options.BodyReadSize, "max-response-size", "mrs", defaultBodyReadSize, "maximum response size to read"),
 		flagSet.IntVar(&options.Timeout, "timeout", 10, "time to wait for request in seconds"),
+		flagSet.IntVar(&options.TimeStable, "time-stable", 1, "time to wait until the page is stable in seconds"),
 		flagSet.BoolVarP(&options.AutomaticFormFill, "automatic-form-fill", "aff", false, "enable automatic form filling (experimental)"),
 		flagSet.BoolVarP(&options.FormExtraction, "form-extraction", "fx", false, "extract form, input, textarea & select elements in jsonl output"),
 		flagSet.IntVar(&options.Retries, "retry", 1, "number of times to retry the request"),
@@ -127,6 +134,7 @@ pipelines offering both headless and non-headless crawling.`)
 		flagSet.BoolVarP(&options.IgnoreQueryParams, "ignore-query-params", "iqp", false, "Ignore crawling same path with different query-param values"),
 		flagSet.BoolVarP(&options.TlsImpersonate, "tls-impersonate", "tlsi", false, "enable experimental client hello (ja3) tls randomization"),
 		flagSet.BoolVarP(&options.DisableRedirects, "disable-redirects", "dr", false, "disable following redirects (default false)"),
+		flagSet.BoolVarP(&options.PathClimb, "path-climb", "pc", false, "enable path climb (auto crawl parent paths)"),
 	)
 
 	flagSet.CreateGroup("debug", "Debug",
@@ -160,7 +168,7 @@ pipelines offering both headless and non-headless crawling.`)
 	flagSet.CreateGroup("filter", "Filter",
 		flagSet.StringSliceVarP(&options.OutputMatchRegex, "match-regex", "mr", nil, "regex or list of regex to match on output url (cli, file)", goflags.FileStringSliceOptions),
 		flagSet.StringSliceVarP(&options.OutputFilterRegex, "filter-regex", "fr", nil, "regex or list of regex to filter on output url (cli, file)", goflags.FileStringSliceOptions),
-		flagSet.StringVarP(&options.Fields, "field", "f", "", fmt.Sprintf("field to display in output (%s)", availableFields)),
+		flagSet.StringVarP(&options.Fields, "field", "f", "", fmt.Sprintf("field to display in output (%s) (Deprecated: use -output-template instead)", availableFields)),
 		flagSet.StringVarP(&options.StoreFields, "store-field", "sf", "", fmt.Sprintf("field to store in per-host output (%s)", availableFields)),
 		flagSet.StringSliceVarP(&options.ExtensionsMatch, "extension-match", "em", nil, "match output for given extension (eg, -em php,html,js)", goflags.CommaSeparatedStringSliceOptions),
 		flagSet.StringSliceVarP(&options.ExtensionFilter, "extension-filter", "ef", nil, "filter output for given extension (eg, -ef png,css)", goflags.CommaSeparatedStringSliceOptions),
@@ -183,6 +191,7 @@ pipelines offering both headless and non-headless crawling.`)
 
 	flagSet.CreateGroup("output", "Output",
 		flagSet.StringVarP(&options.OutputFile, "output", "o", "", "file to write output to"),
+		flagSet.StringVarP(&options.OutputTemplate, "output-template", "ot", "", "custom output template"),
 		flagSet.BoolVarP(&options.StoreResponse, "store-response", "sr", false, "store http requests/responses"),
 		flagSet.StringVarP(&options.StoreResponseDir, "store-response-dir", "srd", "", "store http requests/responses to custom directory"),
 		flagSet.BoolVarP(&options.NoClobber, "no-clobber", "ncb", false, "do not overwrite output file"),

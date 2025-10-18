@@ -44,6 +44,10 @@ func validateOptions(options *types.Options) error {
 		gologger.Debug().Msgf("store response directory specified, enabling \"sr\" flag automatically\n")
 		options.StoreResponse = true
 	}
+	if options.StoreResponseBodyDir != "" && !options.StoreResponseBody {
+		gologger.Debug().Msgf("store response body directory specified, enabling \"srb\" flag automatically\n")
+		options.StoreResponseBody = true
+	}
 	for _, mr := range options.OutputMatchRegex {
 		cr, err := regexp.Compile(mr)
 		if err != nil {

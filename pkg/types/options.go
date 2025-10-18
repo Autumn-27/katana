@@ -132,6 +132,10 @@ type Options struct {
 	StoreResponse bool
 	// StoreResponseDir specifies if katana should use a custom directory to store http requests/responses
 	StoreResponseDir string
+	// StoreResponseBody specifies if katana should store http responses body
+	StoreResponseBody bool
+	// StoreResponseBodyDir specifies if katana should use a custom directory to store http responses body
+	StoreResponseBodyDir string
 	// NoClobber specifies if katana should overwrite existing output files
 	NoClobber bool
 	// StoreFieldDir specifies if katana should use a custom directory to store fields

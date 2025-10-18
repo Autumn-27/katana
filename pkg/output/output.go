@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	indexFile          = "index.txt"
-	DefaultResponseDir = "katana_response"
+	indexFile              = "index.txt"
+	DefaultResponseDir     = "katana_response"
+	DefaultResponseBodyDir = "katana_response_body"
 )
 
 var (
@@ -52,7 +53,9 @@ type StandardWriter struct {
 	outputFile            *fileWriter
 	outputMutex           *sync.Mutex
 	storeResponse         bool
+	storeResponseBody     bool
 	storeResponseDir      string
+	storeResponseBodyDir  string
 	noClobber             bool
 	omitRaw               bool
 	omitBody              bool
@@ -76,6 +79,8 @@ func New(options Options) (Writer, error) {
 		outputMutex:           &sync.Mutex{},
 		storeResponse:         options.StoreResponse,
 		storeResponseDir:      options.StoreResponseDir,
+		storeResponseBody:     options.StoreResponseBody,
+		storeResponseBodyDir:  options.StoreResponseBodyDir,
 		noClobber:             options.NoClobber,
 		omitRaw:               options.OmitRaw,
 		omitBody:              options.OmitBody,
@@ -144,6 +149,20 @@ func New(options Options) (Writer, error) {
 			return nil, errkit.Wrap(err, "output: could not create index file")
 		}
 	}
+	if options.StoreResponseBody {
+		writer.storeResponseBodyDir = DefaultResponseBodyDir
+		if options.StoreResponseBodyDir != DefaultResponseBodyDir && options.StoreResponseBodyDir != "" {
+			writer.storeResponseBodyDir = options.StoreResponseBodyDir
+		}
+		if options.NoClobber {
+			writer.storeResponseBodyDir = createDirNameNoClobber(writer.storeResponseBodyDir)
+			_ = os.MkdirAll(writer.storeResponseBodyDir, os.ModePerm)
+		} else {
+			removeDirsWithSuffix(writer.storeResponseBodyDir)
+			_ = os.MkdirAll(writer.storeResponseBodyDir, os.ModePerm)
+		}
+	}
+
 	if options.ErrorLogFile != "" {
 		errorFile, err := newFileOutputWriter(options.ErrorLogFile)
 		if err != nil {
@@ -198,6 +217,18 @@ func (w *StandardWriter) Write(result *Result) error {
 				return errkit.Wrap(err, "output: could not store response")
 			}
 			if err := fileWriter.Write(data); err != nil {
+				return errkit.Wrap(err, "output: could not store response")
+			}
+			_ = fileWriter.Close()
+		}
+	}
+	if w.storeResponseBody && result.HasResponse() {
+		if fileName, fileWriter, err := getResponseFile(w.storeResponseBodyDir, result.Response.Resp.Request.URL.String()); err == nil {
+			if absPath, err := filepath.Abs(fileName); err == nil {
+				fileName = absPath
+			}
+			result.Response.StoredResponseBodyPath = fileName
+			if err := fileWriter.Write([]byte(result.Response.Body)); err != nil {
 				return errkit.Wrap(err, "output: could not store response")
 			}
 			_ = fileWriter.Close()

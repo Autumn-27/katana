@@ -28,19 +28,20 @@ func (h *Headers) MarshalJSON() ([]byte, error) {
 
 // Response is a response generated from crawler navigation
 type Response struct {
-	Resp               *http.Response    `json:"-"`
-	Depth              int               `json:"-"`
-	Reader             *goquery.Document `json:"-"`
-	StatusCode         int               `json:"status_code,omitempty"`
-	Headers            Headers           `json:"headers,omitempty"`
-	Body               string            `json:"body,omitempty"`
-	ContentLength      int64             `json:"content_length,omitempty"`
-	RootHostname       string            `json:"-"`
-	Technologies       []string          `json:"technologies,omitempty"`
-	Raw                string            `json:"raw,omitempty"`
-	Forms              []Form            `json:"forms,omitempty"`
-	XhrRequests        []Request         `json:"xhr_requests,omitempty"`
-	StoredResponsePath string            `json:"stored_response_path,omitempty"`
+	Resp                   *http.Response    `json:"-"`
+	Depth                  int               `json:"-"`
+	Reader                 *goquery.Document `json:"-"`
+	StatusCode             int               `json:"status_code,omitempty"`
+	Headers                Headers           `json:"headers,omitempty"`
+	Body                   string            `json:"body,omitempty"`
+	ContentLength          int64             `json:"content_length,omitempty"`
+	RootHostname           string            `json:"-"`
+	Technologies           []string          `json:"technologies,omitempty"`
+	Raw                    string            `json:"raw,omitempty"`
+	Forms                  []Form            `json:"forms,omitempty"`
+	XhrRequests            []Request         `json:"xhr_requests,omitempty"`
+	StoredResponsePath     string            `json:"stored_response_path,omitempty"`
+	StoredResponseBodyPath string            `json:"stored_response_path,omitempty"`
 }
 
 func (n Response) AbsoluteURL(path string) string {

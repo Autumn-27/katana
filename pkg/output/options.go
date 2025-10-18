@@ -12,6 +12,7 @@ type Options struct {
 	JSON                  bool
 	Verbose               bool
 	StoreResponse         bool
+	StoreResponseBody     bool
 	NoClobber             bool
 	OmitRaw               bool
 	OmitBody              bool
@@ -19,6 +20,7 @@ type Options struct {
 	Fields                string
 	StoreFields           string
 	StoreResponseDir      string
+	StoreResponseBodyDir  string
 	StoreFieldDir         string
 	FieldConfig           string
 	ErrorLogFile          string

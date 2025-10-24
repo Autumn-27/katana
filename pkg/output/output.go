@@ -223,15 +223,17 @@ func (w *StandardWriter) Write(result *Result) error {
 		}
 	}
 	if w.storeResponseBody && result.HasResponse() {
-		if fileName, fileWriter, err := getResponseFile(w.storeResponseBodyDir, result.Response.Resp.Request.URL.String()); err == nil {
-			if absPath, err := filepath.Abs(fileName); err == nil {
-				fileName = absPath
+		if result.Response.Body != "" {
+			if fileName, fileWriter, err := getResponseFile(w.storeResponseBodyDir, result.Response.Resp.Request.URL.String()); err == nil {
+				if absPath, err := filepath.Abs(fileName); err == nil {
+					fileName = absPath
+				}
+				result.Response.StoredResponseBodyPath = fileName
+				if err := fileWriter.Write([]byte(result.Response.Body)); err != nil {
+					return errkit.Wrap(err, "output: could not store response")
+				}
+				_ = fileWriter.Close()
 			}
-			result.Response.StoredResponseBodyPath = fileName
-			if err := fileWriter.Write([]byte(result.Response.Body)); err != nil {
-				return errkit.Wrap(err, "output: could not store response")
-			}
-			_ = fileWriter.Close()
 		}
 	}
 

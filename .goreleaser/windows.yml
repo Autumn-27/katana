@@ -1,28 +1,30 @@
-version: 2
+# .goreleaser/windows.yml
+project_name: katana
 
 env:
   - GO111MODULE=on
+
 before:
   hooks:
     - go mod tidy
-project_name: katana
+
 builds:
   - id: katana-windows
-    ldflags:
-      - -s -w
+    main: ./cmd/katana/main.go
     binary: katana
     env:
-    - CGO_ENABLED=1
-    main: ./cmd/katana/main.go
+      - CGO_ENABLED=1
     goos:
       - windows
     goarch:
       - 386
-      - arm64
       - amd64
+      - arm64
+    ldflags:
+      - -s -w
 
 archives:
-- formats: zip
+  - format: zip
 
 checksum:
   name_template: "{{ .ProjectName }}-windows-checksums.txt"
